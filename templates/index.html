@@ -459,6 +459,143 @@
         text-align: center;
       }
     }
+/* Functional Metus chat workspace */
+
+.chat-workspace {
+  display: none;
+  max-width: 850px;
+  margin: 60px auto;
+  padding: 25px;
+}
+
+body.chat-mode main > section:not(#chat-workspace) {
+  display: none;
+}
+
+body.chat-mode #chat-workspace {
+  display: block;
+}
+
+body.chat-mode footer {
+  display: none;
+}
+
+.chat-heading {
+  text-align: center;
+  margin-bottom: 30px;
+}
+
+.chat-heading h2 {
+  font-size: clamp(2rem, 5vw, 3rem);
+  margin: 25px 0 8px;
+}
+
+.chat-heading p {
+  color: var(--muted);
+}
+
+.back-button {
+  display: inline-block;
+  color: #a78bfa;
+  font-size: .9rem;
+}
+
+.chat-messages {
+  min-height: 300px;
+  max-height: 55vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 0;
+}
+
+.chat-bubble {
+  padding: 17px 20px;
+  border: 1px solid var(--border);
+  border-radius: 15px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+
+.assistant-bubble {
+  background: rgba(139, 92, 246, .08);
+  align-self: flex-start;
+  max-width: 95%;
+}
+
+.user-bubble {
+  background: rgba(34, 211, 238, .08);
+  border-color: rgba(34, 211, 238, .2);
+  align-self: flex-end;
+  max-width: 95%;
+}
+
+.chat-bubble strong {
+  display: block;
+  margin-bottom: 8px;
+}
+
+.chat-form {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  padding: 12px;
+  border: 1px solid rgba(139, 92, 246, .35);
+  border-radius: 15px;
+  background: var(--surface);
+}
+
+.chat-form textarea {
+  flex: 1;
+  resize: vertical;
+  min-height: 45px;
+  max-height: 150px;
+  padding: 12px;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: white;
+  font: inherit;
+}
+
+.chat-form button {
+  border: none;
+  border-radius: 10px;
+  padding: 13px 18px;
+  background: linear-gradient(100deg, #7c3aed, #6366f1);
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chat-form button:disabled {
+  opacity: .5;
+  cursor: not-allowed;
+}
+
+.chat-note {
+  color: #777f98;
+  text-align: center;
+  font-size: .75rem;
+  margin-top: 13px;
+}
+
+@media (max-width: 520px) {
+  .chat-workspace {
+    width: 100%;
+    margin: 25px auto;
+    padding: 12px;
+  }
+
+  .chat-form {
+    padding: 8px;
+  }
+
+  .chat-form button {
+    padding: 12px;
+  }
+}
   </style>
 </head>
 
@@ -580,7 +717,35 @@
             Start chatting with Metus →
           </a>
         </div>
-      </section>
+      </section>  
+     <section id="chat-workspace" class="chat-workspace">
+  <div class="chat-heading">
+    <a href="/" class="back-button">← Back to Metus</a>
+    <h2>Chat with <span class="gradient-text">Metus</span></h2>
+    <p>Ask a question, explore an idea, or get help with a task.</p>
+  </div>
+
+  <div id="chat-messages" class="chat-messages">
+    <div class="chat-bubble assistant-bubble">
+      <strong>✦ Metus</strong>
+      <p>Hello! I'm Metus. What would you like to explore today?</p>
+    </div>
+  </div>
+
+  <form id="chat-form" class="chat-form">
+    <textarea
+      id="message-input"
+      placeholder="Ask Metus anything..."
+      rows="1"
+      maxlength="12000"
+      required
+    ></textarea>
+
+    <button type="submit" id="send-button">Send ↑</button>
+  </form>
+
+  <p class="chat-note">Metus can make mistakes. Check important information.</p>
+</section>
     </main>
 
     <footer>
@@ -590,5 +755,78 @@
       </div>
     </footer>
   </div>
+<script>
+  // Show the chat workspace when the visitor opens /chat
+  if (window.location.pathname === "/chat") {
+    document.body.classList.add("chat-mode");
+  }
+
+  const chatForm = document.getElementById("chat-form");
+  const messageInput = document.getElementById("message-input");
+  const chatMessages = document.getElementById("chat-messages");
+  const sendButton = document.getElementById("send-button");
+
+  function addMessage(text, sender) {
+    const bubble = document.createElement("div");
+    bubble.className = "chat-bubble " +
+      (sender === "user" ? "user-bubble" : "assistant-bubble");
+
+    const label = document.createElement("strong");
+    label.textContent = sender === "user" ? "You" : "✦ Metus";
+
+    const paragraph = document.createElement("p");
+    paragraph.textContent = text;
+
+    bubble.appendChild(label);
+    bubble.appendChild(paragraph);
+    chatMessages.appendChild(bubble);
+
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    return paragraph;
+  }
+
+  chatForm.addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    addMessage(message, "user");
+    messageInput.value = "";
+    sendButton.disabled = true;
+    sendButton.textContent = "Thinking...";
+
+    const replyElement = addMessage("Metus is thinking...", "assistant");
+
+    try {
+      const response = await fetch("/api/chat", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          message: message,
+          mode: "general"
+        })
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        replyElement.textContent = data.error || "Something went wrong.";
+      } else {
+        replyElement.textContent = data.reply;
+      }
+    } catch (error) {
+      replyElement.textContent =
+        "I couldn't connect to Metus. Please check your internet connection and try again.";
+    }
+
+    sendButton.disabled = false;
+    sendButton.textContent = "Send ↑";
+    messageInput.focus();
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+  });
+</script>
 </body>
 </html>
